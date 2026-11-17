@@ -1,0 +1,1748 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSE 經濟學探究教室 — 需求彈性計算與曲線斜度探究</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter & Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        /* 易於平板與課室白板拖動的粗滑桿 */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #2563eb;
+            border: 3px solid #ffffff;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.45);
+            transition: transform 0.15s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+        /* 橘色滑桿（用於沿線移動價格點） */
+        input[type=range].amber-slider::-webkit-slider-thumb {
+            background: #d97706;
+            box-shadow: 0 2px 6px rgba(217, 119, 6, 0.45);
+        }
+        /* 穩健的 Canvas 容器樣式，確保任何裝置下皆有明確寬高且不失真 */
+        .canvas-wrapper {
+            position: relative;
+            width: 100%;
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+        canvas#pedCanvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 4 / 3;
+            touch-action: none;
+            cursor: grab;
+        }
+        canvas#pedCanvas:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body class="antialiased pb-16">
+
+    <!-- 提示訊息框 (取代 alert) -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform transition-all duration-300 translate-y-20 opacity-0 pointer-events-none">
+        <div class="bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3">
+            <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+            <span id="toast-msg" class="text-sm font-medium">操作成功</span>
+        </div>
+    </div>
+
+    <!-- 1. 頂部導航與組別切換 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl bg-brand-600 text-white flex items-center justify-center shadow-md shadow-brand-500/20 shrink-0">
+                    <i class="fa-solid fa-chart-line text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">DSE 經濟學探究教室 — 需求彈性計算與曲線斜度探究</h1>
+                    <p class="text-xs text-slate-500 font-medium flex items-center gap-2">
+                        <span>① 計算需求彈性 (Ed) ➔ ② 調校曲線斜度與沿線移動 ➔ ③ 逐步總結與全班分享</span>
+                        <span id="autosave-indicator" class="hidden sm:inline-flex items-center gap-1 text-emerald-600 font-semibold">
+                            <i class="fa-solid fa-cloud-check"></i> 已自動儲存
+                        </span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- 右側組別與教師工具 -->
+            <div class="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
+                <div class="flex items-center gap-2 bg-brand-50 px-3 py-1.5 rounded-xl border border-brand-200">
+                    <label for="group-select" class="text-xs sm:text-sm font-bold text-brand-900 flex items-center gap-1.5">
+                        <i class="fa-solid fa-users text-brand-600"></i>
+                        <span>目前組別：</span>
+                    </label>
+                    <select id="group-select" class="bg-white border border-brand-300 text-slate-900 text-xs sm:text-sm font-extrabold rounded-lg focus:ring-brand-500 focus:border-brand-500 px-2.5 py-1 shadow-sm cursor-pointer">
+                        <option value="1">第 1 組</option>
+                        <option value="2">第 2 組</option>
+                        <option value="3">第 3 組</option>
+                        <option value="4">第 4 組</option>
+                        <option value="5">第 5 組</option>
+                    </select>
+                </div>
+
+                <button type="button" onclick="loadDemoData()" class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>載入教師示範數據</span>
+                </button>
+
+                <button type="button" onclick="resetAllGroups()" class="px-3 py-2 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    <span>重設所有數據</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
+
+        <!-- 2. 選擇三個情境 -->
+        <section>
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-lg bg-slate-800 text-white flex items-center justify-center text-xs font-bold">情境</span>
+                    <span>選擇探究情境（完成一個情境後，可切換至其他情境繼續探究）</span>
+                </h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- 情境一：加價 -->
+                <div onclick="selectCase(1)" id="case-card-1" class="case-card cursor-pointer rounded-2xl p-5 border-2 transition-all duration-200 bg-white hover:shadow-md border-brand-600 ring-2 ring-brand-500/20">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-100 text-blue-800">
+                            <i class="fa-solid fa-arrow-up"></i> 情境一：加價
+                        </span>
+                        <span id="case-done-badge-1" class="hidden text-xs font-bold text-emerald-600"><i class="fa-solid fa-circle-check"></i> 已發佈</span>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-base mb-1.5">情境一：加價（$8 升至 $12）</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed mb-3">
+                        某商品原有價格為 <strong>$8</strong>，需求量為 <strong>110 件</strong>；商戶加價至 <strong>$12</strong> 後，需求量減少至 <strong>90 件</strong>。
+                    </p>
+                    <div class="pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs font-semibold text-slate-700">
+                        <div>P₁ = $8 ➔ P₂ = $12</div>
+                        <div class="text-right">Q₁ = 110 ➔ Q₂ = 90</div>
+                    </div>
+                </div>
+
+                <!-- 情境二：減價 -->
+                <div onclick="selectCase(2)" id="case-card-2" class="case-card cursor-pointer rounded-2xl p-5 border-2 transition-all duration-200 bg-white hover:shadow-md border-slate-200">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800">
+                            <i class="fa-solid fa-arrow-down"></i> 情境二：減價
+                        </span>
+                        <span id="case-done-badge-2" class="hidden text-xs font-bold text-emerald-600"><i class="fa-solid fa-circle-check"></i> 已發佈</span>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-base mb-1.5">情境二：減價（$22 減至 $18）</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed mb-3">
+                        某商品原有價格為 <strong>$22</strong>，需求量為 <strong>80 件</strong>；商戶減價至 <strong>$18</strong> 後，需求量增加至 <strong>120 件</strong>。
+                    </p>
+                    <div class="pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs font-semibold text-slate-700">
+                        <div>P₁ = $22 ➔ P₂ = $18</div>
+                        <div class="text-right">Q₁ = 80 ➔ Q₂ = 120</div>
+                    </div>
+                </div>
+
+                <!-- 情境三：供應減少，需求不變 -->
+                <div onclick="selectCase(3)" id="case-card-3" class="case-card cursor-pointer rounded-2xl p-5 border-2 transition-all duration-200 bg-white hover:shadow-md border-slate-200">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-100 text-purple-800">
+                            <i class="fa-solid fa-arrows-left-right"></i> 情境三：供應減少，需求不變
+                        </span>
+                        <span id="case-done-badge-3" class="hidden text-xs font-bold text-emerald-600"><i class="fa-solid fa-circle-check"></i> 已發佈</span>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-base mb-1.5">情境三：供應減少（推高均衡價格）</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed mb-3">
+                        市場因供應減少（<strong>供應曲線左移而需求不變</strong>），均衡價格由 <strong>$16</strong> 上升至 <strong>$24</strong>，均衡數量由 <strong>55 件</strong>減少至 <strong>45 件</strong>。
+                    </p>
+                    <div class="pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs font-semibold text-slate-700">
+                        <div>P₁ = $16 ➔ P₂ = $24</div>
+                        <div class="text-right">Q₁ = 55 ➔ Q₂ = 45</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. 階段一：親手計算需求價格彈性 (Ed) -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">1</span>
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold text-slate-800">階段一：親手計算需求價格彈性 (Ed) — 中點法</h2>
+                        <p class="text-xs text-slate-500">根據下方已知數據，代入中點法公式分步計算需求價格彈性</p>
+                    </div>
+                </div>
+                <span id="stage1-lock-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                    <i class="fa-solid fa-pen-to-square mr-1"></i> 請填寫計算結果
+                </span>
+            </div>
+
+            <div class="p-6 space-y-5">
+                <!-- 數據提示列與中點法公式卡片 -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center bg-slate-900 text-white p-4 rounded-2xl">
+                    <div class="lg:col-span-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                        <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700">
+                            <span class="text-xs text-slate-400 block">原有價格 (P₁)</span>
+                            <span id="s1-p0" class="text-lg font-extrabold text-white">$8</span>
+                        </div>
+                        <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700">
+                            <span class="text-xs text-slate-400 block">新價格 (P₂)</span>
+                            <span id="s1-p1" class="text-lg font-extrabold text-amber-400">$12</span>
+                        </div>
+                        <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700">
+                            <span class="text-xs text-slate-400 block">原有需求量 (Q₁)</span>
+                            <span id="s1-q0" class="text-lg font-extrabold text-white">110 件</span>
+                        </div>
+                        <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700">
+                            <span class="text-xs text-slate-400 block">新需求量 (Q₂)</span>
+                            <span id="s1-q1" class="text-lg font-extrabold text-sky-400">90 件</span>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-6 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700">
+                        <div class="text-slate-400 text-xs mb-1.5 font-semibold">需求價格彈性（中點法）公式：</div>
+                        <div class="flex items-center gap-2 font-mono text-emerald-300 font-bold text-sm sm:text-base overflow-x-auto">
+                            <span>Ed =</span>
+                            <span class="text-xl font-normal">|</span>
+                            <div class="inline-flex flex-col items-center px-1.5 bg-slate-900/70 rounded border border-slate-700">
+                                <span class="border-b border-emerald-400/60 px-2 pb-0.5 text-xs sm:text-sm">ΔQ</span>
+                                <span class="pt-0.5 text-xs sm:text-sm">(Q₁ + Q₂) / 2</span>
+                            </div>
+                            <span>÷</span>
+                            <div class="inline-flex flex-col items-center px-1.5 bg-slate-900/70 rounded border border-slate-700">
+                                <span class="border-b border-emerald-400/60 px-2 pb-0.5 text-xs sm:text-sm">ΔP</span>
+                                <span class="pt-0.5 text-xs sm:text-sm">(P₁ + P₂) / 2</span>
+                            </div>
+                            <span class="text-xl font-normal">|</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 學生分步輸入計算結果 -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- 步驟 1：需求量百分比變動 -->
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <label for="input-pct-q" class="block text-xs font-bold text-slate-700">
+                            (1) 需求量百分比變動<br>
+                            <span class="font-mono text-indigo-700">[ ΔQ ÷ (Q₁+Q₂)/2 ] × 100%</span>
+                        </label>
+                        <div class="relative">
+                            <input type="number" step="any" id="input-pct-q" placeholder="例如: -20 或 40" class="w-full rounded-lg border border-slate-300 px-3 py-2 pr-8 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500">
+                            <span class="absolute right-3 top-2 text-sm font-bold text-slate-400">%</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500">可填正負號（如 -20 或 40）</p>
+                    </div>
+
+                    <!-- 步驟 2：價格百分比變動 -->
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <label for="input-pct-p" class="block text-xs font-bold text-slate-700">
+                            (2) 價格百分比變動<br>
+                            <span class="font-mono text-indigo-700">[ ΔP ÷ (P₁+P₂)/2 ] × 100%</span>
+                        </label>
+                        <div class="relative">
+                            <input type="number" step="any" id="input-pct-p" placeholder="例如: 40 或 -20" class="w-full rounded-lg border border-slate-300 px-3 py-2 pr-8 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500">
+                            <span class="absolute right-3 top-2 text-sm font-bold text-slate-400">%</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500">可填正負號（如 40 或 -20）</p>
+                    </div>
+
+                    <!-- 步驟 3：Ed 數值 -->
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <label for="input-ed" class="block text-xs font-bold text-slate-700">
+                            (3) 需求彈性數值 (Ed)<br>
+                            <span class="font-mono text-indigo-700">| 需求量變動% ÷ 價格變動% |</span>
+                        </label>
+                        <input type="number" step="0.01" id="input-ed" placeholder="例如: 0.5 或 2" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-500">
+                        <p class="text-[11px] text-slate-500">取正數（絕對值）</p>
+                    </div>
+
+                    <!-- 步驟 4：選擇高彈性或低彈性 -->
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <span class="block text-xs font-bold text-slate-700">(4) 判斷彈性種類</span>
+                        <div class="grid grid-cols-2 gap-2 pt-2">
+                            <button type="button" onclick="selectS1Type('elastic')" id="btn-s1-elastic" class="py-2 px-2 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold text-slate-700 hover:border-indigo-400 transition-all">
+                                高彈性<br><span class="text-[11px] font-normal">(Ed &gt; 1)</span>
+                            </button>
+                            <button type="button" onclick="selectS1Type('inelastic')" id="btn-s1-inelastic" class="py-2 px-2 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold text-slate-700 hover:border-indigo-400 transition-all">
+                                低彈性<br><span class="text-[11px] font-normal">(Ed &lt; 1)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 核對答案與回饋區 -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <div id="s1-feedback-box" class="text-xs sm:text-sm font-medium text-slate-600 flex-1">
+                        輸入計算結果後，點擊右側按鈕核對答案並查看中點法算式解析。
+                    </div>
+                    <div class="flex items-center gap-2.5 shrink-0">
+                        <button type="button" onclick="checkStage1Answer()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-2">
+                            <i class="fa-solid fa-check-double"></i>
+                            <span>核對計算答案</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. 階段二：調校需求曲線斜度與沿線移動滑標（互動視覺化） -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-8 h-8 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">2</span>
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold text-slate-800">階段二：調校需求曲線斜度與沿線移動滑標（互動視覺化）</h2>
+                        <p class="text-xs text-slate-500">控制項 1：調校需求曲線斜度（較斜 / 較平） ➔ 控制項 2：沿需求線移動滑標觀察總收入 (TR) 面積增減</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="forceRefreshChart()" class="text-xs font-semibold text-brand-700 hover:text-brand-900 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-1.5 rounded-lg shadow-sm transition-colors">
+                        <i class="fa-solid fa-arrows-rotate mr-1"></i> 重新整理圖表
+                    </button>
+                    <button type="button" onclick="resetStage2Controls()" class="text-xs font-semibold text-slate-600 hover:text-brand-600 bg-white border border-slate-300 px-3 py-1.5 rounded-lg shadow-sm transition-colors">
+                        <i class="fa-solid fa-arrow-rotate-left mr-1"></i> 重設斜度與滑標
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    
+                    <!-- 左側：互動 P-Q 座標圖 (7 欄) -->
+                    <div class="lg:col-span-7 space-y-3">
+                        <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3 sm:p-4">
+                            <!-- 圖例 -->
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5 text-xs font-semibold px-1">
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <span class="inline-flex items-center gap-1.5 text-brand-700">
+                                        <span class="w-4 h-1 bg-brand-600 rounded"></span> 需求曲線 (D)
+                                    </span>
+                                    <span id="legend-supply" class="hidden inline-flex items-center gap-1.5 text-purple-700">
+                                        <span class="w-4 h-1 bg-purple-600 rounded"></span> 供應曲線 (S₁ ➔ S₂)
+                                    </span>
+                                    <span class="inline-flex items-center gap-1.5 text-emerald-700">
+                                        <span class="w-3.5 h-3.5 rounded bg-emerald-500/35 border border-emerald-600"></span> 增加收入 (+TR)
+                                    </span>
+                                    <span class="inline-flex items-center gap-1.5 text-rose-700">
+                                        <span class="w-3.5 h-3.5 rounded bg-rose-500/35 border border-rose-600"></span> 減少收入 (-TR)
+                                    </span>
+                                </div>
+                                <span class="text-[11px] text-slate-500 font-medium">支援直接拖動圖上橘色滑標點 B</span>
+                            </div>
+
+                            <!-- 內建明確固定寬高屬性 (width="560" height="420") 的 Canvas -->
+                            <div class="canvas-wrapper shadow-inner">
+                                <canvas id="pedCanvas" width="560" height="420"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- 總收入 TR 即時面積變化解說 -->
+                        <div id="tr-visual-summary" class="p-4 rounded-xl bg-slate-100 border border-slate-200 text-xs sm:text-sm text-slate-800 leading-relaxed">
+                            <!-- 由 JS 動態更新 -->
+                        </div>
+                    </div>
+
+                    <!-- 右側：兩個互動控制項 (5 欄) -->
+                    <div class="lg:col-span-5 space-y-4">
+                        
+                        <!-- 控制項 1：調校需求曲線斜度 -->
+                        <div class="bg-brand-50/70 p-4 rounded-2xl border-2 border-brand-200 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-brand-600 text-white">控制項 1</span>
+                                <span id="slope-status-label" class="text-xs font-extrabold text-brand-800 bg-white px-2.5 py-1 rounded-lg border border-brand-200">
+                                    目前斜度：中等斜度
+                                </span>
+                            </div>
+
+                            <div>
+                                <label for="slope-slider" class="block text-sm font-bold text-slate-900 mb-1">
+                                    調校需求曲線 (D) 的斜度：
+                                </label>
+                                <p class="text-xs text-slate-600 mb-2">
+                                    根據階段一算出的彈性（<span id="s2-ed-hint" class="font-bold text-indigo-700">尚未核對</span>），需求曲線應該調校成<strong>較斜</strong>還是<strong>較平</strong>？
+                                </p>
+                                <input type="range" id="slope-slider" min="1" max="5" step="1" value="3" class="w-full">
+                                <div class="flex justify-between text-xs font-bold text-slate-600 mt-1">
+                                    <span>非常陡峭 (較斜)</span>
+                                    <span>中等</span>
+                                    <span>非常平坦 (較平)</span>
+                                </div>
+                            </div>
+
+                            <div class="pt-1">
+                                <button type="button" onclick="checkCurveSlope()" class="w-full py-2 px-3 bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-sm transition-colors flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-ruler-combined"></i>
+                                    <span>檢查斜度是否合理</span>
+                                </button>
+                            </div>
+                            <div id="slope-feedback" class="hidden text-xs p-2.5 rounded-lg font-semibold leading-relaxed"></div>
+                        </div>
+
+                        <!-- 控制項 2：沿需求線移動滑標 -->
+                        <div class="bg-amber-50/70 p-4 rounded-2xl border-2 border-amber-200 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-600 text-white">控制項 2</span>
+                                <span id="point-pos-badge" class="text-xs font-extrabold text-amber-900 bg-white px-2.5 py-1 rounded-lg border border-amber-200">
+                                    目前位置：起點 A ($8)
+                                </span>
+                            </div>
+
+                            <div>
+                                <label for="move-slider" class="block text-sm font-bold text-slate-900 mb-1">
+                                    沿需求線移動滑標（調整價格 P）：
+                                </label>
+                                <p class="text-xs text-slate-600 mb-2" id="move-instruction-text">
+                                    拖動下方滑桿（或直接拖動圖上橘色圓點），沿需求線移動滑標，觀察總收入變化。
+                                </p>
+                                <input type="range" id="move-slider" class="w-full amber-slider">
+                                <div class="flex justify-between text-xs font-bold text-slate-600 mt-1">
+                                    <span id="move-min-label">$6</span>
+                                    <span id="move-target-label" class="text-amber-700">情境目標：$12</span>
+                                    <span id="move-max-label">$14</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 即時數據對比卡 -->
+                        <div class="bg-slate-900 text-white p-4 rounded-2xl shadow space-y-2.5">
+                            <div class="text-xs font-bold text-slate-400 flex items-center justify-between border-b border-slate-700 pb-2">
+                                <span>即時價格、需求量與總收入 (TR = P × Q)</span>
+                                <span class="text-amber-400">點 A ➔ 點 B</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2.5 text-xs">
+                                <div class="bg-slate-800 p-2.5 rounded-xl">
+                                    <span class="text-slate-400 block">當前價格 (P)</span>
+                                    <span id="live-p-text" class="text-sm sm:text-base font-extrabold text-white">$8 ➔ $8</span>
+                                </div>
+                                <div class="bg-slate-800 p-2.5 rounded-xl">
+                                    <span class="text-slate-400 block">當前需求量 (Q)</span>
+                                    <span id="live-q-text" class="text-sm sm:text-base font-extrabold text-sky-400">110 ➔ 110 件</span>
+                                </div>
+                            </div>
+                            <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex items-center justify-between gap-2">
+                                <div class="text-xs space-y-0.5">
+                                    <div class="text-slate-300">原本總收入 TR₁：<strong id="live-tr0" class="text-white">$880</strong></div>
+                                    <div class="text-slate-300">新總收入 TR₂：<strong id="live-tr1" class="text-amber-300">$880</strong></div>
+                                </div>
+                                <div id="live-tr-diff-badge" class="px-3 py-1.5 rounded-lg text-xs font-extrabold bg-slate-700 text-slate-300 text-right">
+                                    無變化 ($0)
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. 階段三：逐步引導撰寫總結與全班 5 組成果展示板 -->
+        <section class="space-y-6">
+            <!-- 逐步引導填空寫作區 -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">3</span>
+                        <div>
+                            <h2 class="text-base sm:text-lg font-bold text-slate-800">階段三：逐步引導撰寫總結與全班 5 組成果展示板</h2>
+                            <p class="text-xs text-slate-500">完成下方 3 步寫作引導，一鍵整合成完整一段話並發佈至全班展示板</p>
+                        </div>
+                    </div>
+                    <span class="text-xs font-bold text-brand-700 bg-brand-50 px-3 py-1 rounded-full border border-brand-200">
+                        目前正在編輯：第 <span id="s3-group-num">1</span> 組 — <span id="s3-case-name">情境一：加價</span>
+                    </span>
+                </div>
+
+                <div class="p-6 space-y-5">
+                    <!-- 3 個結構化寫作引導卡片 -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- 步驟一 -->
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+                                <span class="text-xs font-bold text-indigo-900">指出彈性數值、類型與曲線斜度</span>
+                            </div>
+                            <p class="text-xs sm:text-sm text-slate-800 leading-loose">
+                                在這個情境中，需求彈性數值為
+                                <input type="text" id="guide-ed-val" placeholder="數值" class="w-16 text-center font-bold text-indigo-700 bg-white border-b-2 border-indigo-400 rounded px-1 py-0.5 focus:outline-none">
+                                ，屬於
+                                <select id="guide-el-type" class="font-bold text-indigo-700 bg-white border border-slate-300 rounded-lg px-2 py-0.5">
+                                    <option value="">請選擇...</option>
+                                    <option value="高">高</option>
+                                    <option value="低">低</option>
+                                </select>
+                                彈性，因此需求曲線應該畫得
+                                <select id="guide-slope-type" class="font-bold text-indigo-700 bg-white border border-slate-300 rounded-lg px-2 py-0.5">
+                                    <option value="">請選擇...</option>
+                                    <option value="較斜">較斜</option>
+                                    <option value="較平">較平</option>
+                                </select>
+                                。
+                            </p>
+                        </div>
+
+                        <!-- 步驟二 -->
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+                                <span class="text-xs font-bold text-brand-900">比較價格與需求量的變動幅度</span>
+                            </div>
+                            <p class="text-xs sm:text-sm text-slate-800 leading-loose">
+                                當價格改變時，需求量的百分比變動幅度
+                                <select id="guide-mag-compare" class="font-bold text-brand-700 bg-white border border-slate-300 rounded-lg px-2 py-0.5">
+                                    <option value="">請選擇...</option>
+                                    <option value="大於">大於</option>
+                                    <option value="小於">小於</option>
+                                </select>
+                                價格的百分比變動幅度。
+                            </p>
+                        </div>
+
+                        <!-- 步驟三 -->
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">3</span>
+                                <span class="text-xs font-bold text-emerald-900">總結總收入 (TR) 增減方向與原因</span>
+                            </div>
+                            <p class="text-xs sm:text-sm text-slate-800 leading-loose">
+                                因此，當價格
+                                <select id="guide-p-dir" class="font-bold text-emerald-700 bg-white border border-slate-300 rounded-lg px-2 py-0.5">
+                                    <option value="">請選擇...</option>
+                                    <option value="上升">上升</option>
+                                    <option value="下跌">下跌</option>
+                                </select>
+                                時，總收入 (TR) 會
+                                <select id="guide-tr-dir" class="font-bold text-emerald-700 bg-white border border-slate-300 rounded-lg px-2 py-0.5">
+                                    <option value="">請選擇...</option>
+                                    <option value="增加">增加</option>
+                                    <option value="減少">減少</option>
+                                </select>
+                                ，兩者呈
+                                <select id="guide-rel-dir" class="font-bold text-emerald-700 bg-white border border-slate-300 rounded-lg px-2 py-0.5">
+                                    <option value="">請選擇...</option>
+                                    <option value="同方向">同方向</option>
+                                    <option value="反方向">反方向</option>
+                                </select>
+                                變動。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 自動組合預覽與自由編輯框 -->
+                    <div class="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 space-y-2.5">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="text-xs font-bold text-emerald-900"><i class="fa-solid fa-file-lines mr-1"></i>本組完整結論段落（可一鍵整合或自由修改）：</span>
+                            <button type="button" onclick="generateIntegratedParagraph()" class="px-3 py-1 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5">
+                                <i class="fa-solid fa-wand-sparkles"></i>
+                                <span>一鍵整合引導內容</span>
+                            </button>
+                        </div>
+                        <textarea id="final-summary-text" rows="3" placeholder="完成上方 3 個步驟的選擇後，點擊「一鍵整合引導內容」或直接在此編輯完整總結..." class="w-full rounded-xl border border-emerald-300 bg-white p-3 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500"></textarea>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="button" onclick="publishGroupSummary()" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-md transition-all flex items-center gap-2">
+                            <i class="fa-solid fa-paper-plane"></i>
+                            <span>儲存並發佈至全班展示板（第 <span id="btn-publish-group-num">1</span> 組）</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 全班 5 個小組探究成果展示板 -->
+            <div class="bg-slate-800 rounded-2xl p-6 text-white shadow-xl">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-700">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold flex items-center gap-2">
+                            <span>👥 全班 5 個小組探究成果展示板（老師投影講評專區）</span>
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5">並列展示第 1 至第 5 組在各情境的計算結果與總結（點擊上方情境按鈕可切換篩選）</p>
+                    </div>
+
+                    <!-- 按情境篩選按鈕 -->
+                    <div class="flex flex-wrap items-center gap-1.5 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
+                        <span class="text-xs text-slate-400 px-2 font-semibold">篩選情境：</span>
+                        <button type="button" onclick="setBoardFilter(1)" id="filter-case-1" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-600 text-white transition-colors">情境一 (加價)</button>
+                        <button type="button" onclick="setBoardFilter(2)" id="filter-case-2" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:bg-slate-800 transition-colors">情境二 (減價)</button>
+                        <button type="button" onclick="setBoardFilter(3)" id="filter-case-3" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:bg-slate-800 transition-colors">情境三 (供應減)</button>
+                    </div>
+                </div>
+
+                <!-- 5 組並列展示網格 -->
+                <div id="class-board-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3.5">
+                    <!-- 由 JavaScript 動態渲染第 1 至第 5 組 -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // ==========================================
+        // 1. 三個情境數據定義（中點法，數字整潔易算）
+        // ==========================================
+        const SCENARIOS = {
+            1: {
+                id: 1,
+                shortName: '情境一：加價',
+                title: '情境一：加價（$8 升至 $12）',
+                p0: 8,
+                p1: 12,
+                q0: 110,
+                q1: 90,
+                midP: 10,     // (8 + 12) / 2 = 10
+                midQ: 100,    // (110 + 90) / 2 = 100
+                pctP: 40,     // +4 / 10 = +40%
+                pctQ: -20,    // -20 / 100 = -20%
+                ed: 0.5,      // |-20% / +40%| = 0.5
+                type: 'inelastic', // 低彈性
+                expectedSlope: 'steep', // 較斜 (滑桿 1 或 2)
+                defaultSliderSlope: 3,
+                minP: 6,
+                maxP: 14,
+                stepP: 1,
+                isSupplyShift: false,
+                explanation: '中點價格 = (8+12)/2 = $10，中點需求量 = (110+90)/2 = 100 件。需求量變動% = -20 / 100 = -20%，價格變動% = +4 / 10 = +40%。代入公式得 Ed = |-20% ÷ 40%| = 0.5 (< 1)，屬於低彈性。'
+            },
+            2: {
+                id: 2,
+                shortName: '情境二：減價',
+                title: '情境二：減價（$22 減至 $18）',
+                p0: 22,
+                p1: 18,
+                q0: 80,
+                q1: 120,
+                midP: 20,     // (22 + 18) / 2 = 20
+                midQ: 100,    // (80 + 120) / 2 = 100
+                pctP: -20,    // -4 / 20 = -20%
+                pctQ: 40,     // +40 / 100 = +40%
+                ed: 2.0,      // |+40% / -20%| = 2.0
+                type: 'elastic', // 高彈性
+                expectedSlope: 'flat', // 較平 (滑桿 4 或 5)
+                defaultSliderSlope: 3,
+                minP: 16,
+                maxP: 24,
+                stepP: 1,
+                isSupplyShift: false,
+                explanation: '中點價格 = (22+18)/2 = $20，中點需求量 = (80+120)/2 = 100 件。需求量變動% = +40 / 100 = +40%，價格變動% = -4 / 20 = -20%。代入公式得 Ed = |40% ÷ -20%| = 2 (> 1)，屬於高彈性。'
+            },
+            3: {
+                id: 3,
+                shortName: '情境三：供應減少，需求不變',
+                title: '情境三：供應減少（推高均衡價格）',
+                p0: 16,
+                p1: 24,
+                q0: 55,
+                q1: 45,
+                midP: 20,     // (16 + 24) / 2 = 20
+                midQ: 50,     // (55 + 45) / 2 = 50
+                pctP: 40,     // +8 / 20 = +40%
+                pctQ: -20,    // -10 / 50 = -20%
+                ed: 0.5,      // |-20% / +40%| = 0.5
+                type: 'inelastic', // 低彈性
+                expectedSlope: 'steep', // 較斜 (滑桿 1 或 2)
+                defaultSliderSlope: 3,
+                minP: 14,
+                maxP: 26,
+                stepP: 1,
+                isSupplyShift: true,
+                explanation: '中點價格 = (16+24)/2 = $20，中點需求量 = (55+45)/2 = 50 件。供應減少使均衡價格變動% = +8 / 20 = +40%，均衡需求量變動% = -10 / 50 = -20%。代入公式得 Ed = |-20% ÷ 40%| = 0.5 (< 1)，屬於低彈性。'
+            }
+        };
+
+        const STORAGE_KEY = 'hkdse_ped_classroom_v4';
+
+        function createEmptyScenarioRecord(caseId) {
+            const sc = SCENARIOS[caseId];
+            return {
+                // 階段一
+                inputPctQ: '',
+                inputPctP: '',
+                inputEd: '',
+                selectedType: '',
+                s1Checked: false,
+                s1Correct: false,
+                // 階段二
+                slopeLevel: sc.defaultSliderSlope, // 1(最斜) ~ 5(最平)
+                slopeChecked: false,
+                currentP: sc.p0, // 沿需求線滑標目前價格
+                // 階段三
+                guideEdVal: '',
+                guideElType: '',
+                guideSlopeType: '',
+                guideMagCompare: '',
+                guidePDir: '',
+                guideTrDir: '',
+                guideRelDir: '',
+                finalSummary: '',
+                published: false
+            };
+        }
+
+        function createDefaultGroup(gid) {
+            return {
+                groupId: gid,
+                activeCase: 1,
+                cases: {
+                    1: createEmptyScenarioRecord(1),
+                    2: createEmptyScenarioRecord(2),
+                    3: createEmptyScenarioRecord(3)
+                }
+            };
+        }
+
+        let appState = {
+            currentGroup: 1,
+            boardFilterCase: 1,
+            groups: {
+                1: createDefaultGroup(1),
+                2: createDefaultGroup(2),
+                3: createDefaultGroup(3),
+                4: createDefaultGroup(4),
+                5: createDefaultGroup(5)
+            }
+        };
+
+        // ==========================================
+        // 2. LocalStorage 與 Toast 提示
+        // ==========================================
+        function loadStorage() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && parsed.groups) {
+                        appState = parsed;
+                    }
+                }
+            } catch (e) {
+                console.error('載入儲存資料失敗', e);
+            }
+        }
+
+        function saveStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+                const ind = document.getElementById('autosave-indicator');
+                if (ind) {
+                    ind.classList.remove('opacity-50');
+                    ind.innerHTML = '<i class="fa-solid fa-cloud-check"></i> 已自動儲存';
+                }
+            } catch (e) {
+                console.error('保存資料失敗', e);
+            }
+        }
+
+        function getCurrGroup() {
+            return appState.groups[appState.currentGroup];
+        }
+
+        function getCurrCaseData() {
+            const g = getCurrGroup();
+            return g.cases[g.activeCase];
+        }
+
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const text = document.getElementById('toast-msg');
+            text.textContent = msg;
+
+            if (type === 'error') {
+                icon.className = 'fa-solid fa-circle-exclamation text-rose-400 text-lg';
+            } else if (type === 'info') {
+                icon.className = 'fa-solid fa-circle-info text-blue-400 text-lg';
+            } else {
+                icon.className = 'fa-solid fa-circle-check text-emerald-400 text-lg';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2600);
+        }
+
+        // ==========================================
+        // 3. 階段一：計算需求彈性邏輯
+        // ==========================================
+        function selectS1Type(type) {
+            const cData = getCurrCaseData();
+            cData.selectedType = type;
+            saveStorage();
+            renderStage1();
+        }
+
+        function checkStage1Answer() {
+            const g = getCurrGroup();
+            const sc = SCENARIOS[g.activeCase];
+            const cData = getCurrCaseData();
+
+            const pctQ = parseFloat(document.getElementById('input-pct-q').value);
+            const pctP = parseFloat(document.getElementById('input-pct-p').value);
+            const ed = parseFloat(document.getElementById('input-ed').value);
+
+            if (isNaN(pctQ) || isNaN(pctP) || isNaN(ed) || !cData.selectedType) {
+                showToast('請先填妥 (1) 至 (4) 的所有欄位再核對！', 'error');
+                return;
+            }
+
+            cData.inputPctQ = pctQ;
+            cData.inputPctP = pctP;
+            cData.inputEd = ed;
+            cData.s1Checked = true;
+
+            // 容許學生輸入帶正負號（例如 -20 或 40）或直接取正值（例如 20 或 40）
+            const isPctQOk = (Math.abs(pctQ - sc.pctQ) <= 0.5) || (Math.abs(Math.abs(pctQ) - Math.abs(sc.pctQ)) <= 0.5);
+            const isPctPOk = (Math.abs(pctP - sc.pctP) <= 0.5) || (Math.abs(Math.abs(pctP) - Math.abs(sc.pctP)) <= 0.5);
+            const isEdOk = Math.abs(ed - sc.ed) <= 0.05;
+            const isTypeOk = (cData.selectedType === sc.type);
+
+            cData.s1Correct = (isPctQOk && isPctPOk && isEdOk && isTypeOk);
+
+            if (cData.s1Correct && !cData.guideEdVal) {
+                cData.guideEdVal = sc.ed.toString();
+                updateAutoSummaryText();
+            }
+
+            saveStorage();
+            renderStage1();
+            renderStage2();
+            renderStage3();
+
+            if (cData.s1Correct) {
+                showToast('中點法計算完全正確！請繼續前往階段二調校需求曲線斜度！');
+            } else {
+                showToast('部分數值有誤，請查看下方提示並重新計算！', 'error');
+            }
+        }
+
+        // ==========================================
+        // 4. 階段二：斜度調校與沿需求線滑動計算
+        // ==========================================
+        function getSlopeFactor(sc, slopeLevel) {
+            const exactSlope = Math.abs((sc.q1 - sc.q0) / (sc.p1 - sc.p0));
+            if (sc.expectedSlope === 'steep') {
+                // 低彈性情境
+                const map = {
+                    1: exactSlope * 0.65,
+                    2: exactSlope,
+                    3: exactSlope * 1.65,
+                    4: exactSlope * 2.4,
+                    5: exactSlope * 3.2
+                };
+                return map[slopeLevel] || exactSlope;
+            } else {
+                // 高彈性情境
+                const map = {
+                    1: exactSlope * 0.25,
+                    2: exactSlope * 0.45,
+                    3: exactSlope * 0.70,
+                    4: exactSlope,
+                    5: exactSlope * 1.35
+                };
+                return map[slopeLevel] || exactSlope;
+            }
+        }
+
+        function getQuantityOnCurve(sc, slopeLevel, price) {
+            const k = getSlopeFactor(sc, slopeLevel);
+            const q = sc.q0 - k * (price - sc.p0);
+            return Math.max(5, Math.round(q * 10) / 10);
+        }
+
+        function checkCurveSlope() {
+            const g = getCurrGroup();
+            const sc = SCENARIOS[g.activeCase];
+            const cData = getCurrCaseData();
+            cData.slopeChecked = true;
+            saveStorage();
+
+            const fb = document.getElementById('slope-feedback');
+            fb.classList.remove('hidden');
+
+            const isSteepChosen = (cData.slopeLevel <= 2);
+            const isFlatChosen = (cData.slopeLevel >= 4);
+
+            if (sc.expectedSlope === 'steep' && isSteepChosen) {
+                fb.className = 'text-xs p-2.5 rounded-lg font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 leading-relaxed';
+                fb.innerHTML = '✅ <strong>斜度合理！</strong>低彈性 (Ed &lt; 1) 的需求曲線應該畫得<strong>較斜（陡峭）</strong>。現在請拖動下方「控制項 2」滑標，觀察價格上升後總收入的變化！';
+                showToast('需求線斜度調校正確！');
+            } else if (sc.expectedSlope === 'flat' && isFlatChosen) {
+                fb.className = 'text-xs p-2.5 rounded-lg font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 leading-relaxed';
+                fb.innerHTML = '✅ <strong>斜度合理！</strong>高彈性 (Ed &gt; 1) 的需求曲線應該畫得<strong>較平（平坦）</strong>。現在請拖動下方「控制項 2」滑標，觀察價格下跌後總收入的變化！';
+                showToast('需求線斜度調校正確！');
+            } else {
+                fb.className = 'text-xs p-2.5 rounded-lg font-semibold bg-rose-100 text-rose-800 border border-rose-300 leading-relaxed';
+                const hint = sc.expectedSlope === 'steep'
+                    ? `本情境計算出 Ed = ${sc.ed} (&lt; 1，低彈性)，代表需求量對價格反應較小，需求曲線應該調校得<strong>較斜（向左拖動）</strong>！`
+                    : `本情境計算出 Ed = ${sc.ed} (&gt; 1，高彈性)，代表需求量對價格反應較大，需求曲線應該調校得<strong>較平（向右拖動）</strong>！`;
+                fb.innerHTML = `❌ <strong>斜度未合理：</strong>${hint}`;
+                showToast('斜度方向未符合，請再調整！', 'error');
+            }
+        }
+
+        function resetStage2Controls() {
+            const g = getCurrGroup();
+            const sc = SCENARIOS[g.activeCase];
+            const cData = getCurrCaseData();
+            cData.slopeLevel = sc.defaultSliderSlope;
+            cData.slopeChecked = false;
+            cData.currentP = sc.p0;
+            document.getElementById('slope-feedback').classList.add('hidden');
+            saveStorage();
+            renderStage2();
+            showToast('已重設曲線斜度與滑標位置', 'info');
+        }
+
+        function forceRefreshChart() {
+            drawChart();
+            showToast('已重新整理並重繪 P-Q 座標圖', 'info');
+        }
+
+        // ==========================================
+        // 5. 穩健的 HTML5 Canvas 互動繪圖與拖動支援
+        // ==========================================
+        let canvasGeom = null;
+        let isDraggingPoint = false;
+
+        function drawChart() {
+            const canvas = document.getElementById('pedCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            // 雙重保障：使用內建明確固定邏輯寬高 (560 x 420)，配合設備 DPR 清晰渲染
+            const logicalW = 560;
+            const logicalH = 420;
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+            if (canvas.width !== logicalW * dpr || canvas.height !== logicalH * dpr) {
+                canvas.width = logicalW * dpr;
+                canvas.height = logicalH * dpr;
+            }
+
+            ctx.save();
+            ctx.scale(dpr, dpr);
+
+            const W = logicalW;
+            const H = logicalH;
+            const pad = { top: 32, right: 38, bottom: 48, left: 56 };
+            const plotW = W - pad.left - pad.right;
+            const plotH = H - pad.top - pad.bottom;
+
+            const g = getCurrGroup();
+            const sc = SCENARIOS[g.activeCase];
+            const cData = getCurrCaseData();
+
+            const maxAxisP = sc.maxP * 1.15;
+            const maxAxisQ = Math.max(sc.q0, sc.q1) * 1.45;
+
+            const toX = (q) => pad.left + (q / maxAxisQ) * plotW;
+            const toY = (p) => pad.top + plotH - (p / maxAxisP) * plotH;
+            const fromY = (y) => ((pad.top + plotH - y) / plotH) * maxAxisP;
+
+            canvasGeom = { pad, plotW, plotH, logicalW, logicalH, toX, toY, fromY, sc, cData };
+
+            // 清空並填上純白底色
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, W, H);
+
+            // 1. 背景網格與座標刻度線
+            ctx.strokeStyle = '#f1f5f9';
+            ctx.lineWidth = 1;
+            for (let i = 1; i <= 5; i++) {
+                const gx = pad.left + (plotW * i) / 5;
+                const gy = pad.top + (plotH * i) / 5;
+                ctx.beginPath();
+                ctx.moveTo(gx, pad.top);
+                ctx.lineTo(gx, pad.top + plotH);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(pad.left, gy);
+                ctx.lineTo(pad.left + plotW, gy);
+                ctx.stroke();
+            }
+
+            const p0 = sc.p0;
+            const q0 = sc.q0;
+            const pCurr = cData.currentP;
+            const qCurr = getQuantityOnCurve(sc, cData.slopeLevel, pCurr);
+
+            const x0 = toX(0);
+            const y0 = toY(0);
+            const xQ0 = toX(q0);
+            const yP0 = toY(p0);
+            const xQC = toX(qCurr);
+            const yPC = toY(pCurr);
+
+            // 2. 總收入 (TR = P × Q) 面積着色
+            if (Math.abs(pCurr - p0) < 0.01) {
+                ctx.fillStyle = 'rgba(59, 130, 246, 0.14)';
+                ctx.fillRect(x0, yP0, xQ0 - x0, y0 - yP0);
+                ctx.strokeStyle = 'rgba(37, 99, 235, 0.45)';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(x0, yP0, xQ0 - x0, y0 - yP0);
+
+                ctx.fillStyle = '#1d4ed8';
+                ctx.font = 'bold 13px sans-serif';
+                ctx.fillText(`原本總收入 TR₁ = $${(p0 * q0).toLocaleString()}`, x0 + 14, (yP0 + y0) / 2);
+            } else {
+                const xCommon = Math.min(xQ0, xQC);
+                const yCommon = Math.max(yP0, yPC);
+
+                // 共同保留收入區
+                ctx.fillStyle = 'rgba(148, 163, 184, 0.16)';
+                ctx.fillRect(x0, yCommon, xCommon - x0, y0 - yCommon);
+
+                if (pCurr > p0) {
+                    // 加價：上方綠色 (+TR 因價格上升)，右側紅色 (-TR 因數量減少)
+                    ctx.fillStyle = 'rgba(16, 185, 129, 0.34)';
+                    ctx.fillRect(x0, yPC, xQC - x0, yP0 - yPC);
+                    ctx.strokeStyle = 'rgba(5, 150, 105, 0.85)';
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(x0, yPC, xQC - x0, yP0 - yPC);
+
+                    ctx.fillStyle = 'rgba(244, 63, 94, 0.32)';
+                    ctx.fillRect(xQC, yP0, xQ0 - xQC, y0 - yP0);
+                    ctx.strokeStyle = 'rgba(225, 29, 72, 0.85)';
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(xQC, yP0, xQ0 - xQC, y0 - yP0);
+
+                    if (yP0 - yPC > 16) {
+                        ctx.fillStyle = '#065f46';
+                        ctx.font = 'bold 11px sans-serif';
+                        ctx.fillText('+TR (價格上升)', x0 + 8, (yPC + yP0) / 2 + 4);
+                    }
+                    if (xQ0 - xQC > 20) {
+                        ctx.fillStyle = '#9f1239';
+                        ctx.font = 'bold 11px sans-serif';
+                        ctx.fillText('-TR', xQC + 4, (yP0 + y0) / 2);
+                    }
+                } else {
+                    // 減價：上方紅色 (-TR 因價格下降)，右側綠色 (+TR 因數量增加)
+                    ctx.fillStyle = 'rgba(244, 63, 94, 0.32)';
+                    ctx.fillRect(x0, yP0, xQ0 - x0, yPC - yP0);
+                    ctx.strokeStyle = 'rgba(225, 29, 72, 0.85)';
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(x0, yP0, xQ0 - x0, yPC - yP0);
+
+                    ctx.fillStyle = 'rgba(16, 185, 129, 0.34)';
+                    ctx.fillRect(xQ0, yPC, xQC - xQ0, y0 - yPC);
+                    ctx.strokeStyle = 'rgba(5, 150, 105, 0.85)';
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(xQ0, yPC, xQC - xQ0, y0 - yPC);
+
+                    if (yPC - yP0 > 16) {
+                        ctx.fillStyle = '#9f1239';
+                        ctx.font = 'bold 11px sans-serif';
+                        ctx.fillText('-TR (價格下降)', x0 + 8, (yP0 + yPC) / 2 + 4);
+                    }
+                    if (xQC - xQ0 > 24) {
+                        ctx.fillStyle = '#065f46';
+                        ctx.font = 'bold 11px sans-serif';
+                        ctx.fillText('+TR', xQ0 + 6, (yPC + y0) / 2);
+                    }
+                }
+            }
+
+            // 3. 座標軸與軸標題
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(pad.left, pad.top);
+            ctx.lineTo(pad.left, pad.top + plotH);
+            ctx.lineTo(pad.left + plotW, pad.top + plotH);
+            ctx.stroke();
+
+            ctx.fillStyle = '#1e293b';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillText('價格 (P)', pad.left - 42, pad.top - 12);
+            ctx.fillText('數量 (Q / 件)', pad.left + plotW - 72, pad.top + plotH + 36);
+            ctx.fillText('0', pad.left - 15, pad.top + plotH + 16);
+
+            // 4. 若為情境三（供應減少，需求不變），繪製供應曲線 S1 與左移後的 S2
+            if (sc.isSupplyShift) {
+                const sSlope = 0.24;
+                // 原供應曲線 S1 通過點 A (Q0, P0)
+                ctx.save();
+                ctx.setLineDash([5, 4]);
+                ctx.strokeStyle = '#9333ea';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                const s0Q1 = Math.max(8, q0 - (p0 / sSlope) * 0.7);
+                const s0P1 = p0 - sSlope * (q0 - s0Q1);
+                const s0Q2 = Math.min(maxAxisQ * 0.90, q0 + (maxAxisP * 0.88 - p0) / sSlope);
+                const s0P2 = p0 + sSlope * (s0Q2 - q0);
+                ctx.moveTo(toX(s0Q1), toY(s0P1));
+                ctx.lineTo(toX(s0Q2), toY(s0P2));
+                ctx.stroke();
+                ctx.restore();
+
+                ctx.fillStyle = '#7e22ce';
+                ctx.font = 'bold 13px sans-serif';
+                ctx.fillText('S₁', toX(s0Q2) + 4, toY(s0P2));
+
+                // 隨滑標移動的新供應曲線 S2 通過點 B (qCurr, pCurr)
+                if (Math.abs(pCurr - p0) >= 0.1) {
+                    ctx.strokeStyle = '#7e22ce';
+                    ctx.lineWidth = 2.6;
+                    ctx.beginPath();
+                    const s1Q1 = Math.max(5, qCurr - (pCurr / sSlope) * 0.7);
+                    const s1P1 = pCurr - sSlope * (qCurr - s1Q1);
+                    const s1Q2 = Math.min(maxAxisQ * 0.90, qCurr + (maxAxisP * 0.88 - pCurr) / sSlope);
+                    const s1P2 = pCurr + sSlope * (s1Q2 - qCurr);
+                    ctx.moveTo(toX(s1Q1), toY(s1P1));
+                    ctx.lineTo(toX(s1Q2), toY(s1P2));
+                    ctx.stroke();
+
+                    ctx.fillText('S₂ (供應左移)', toX(s1Q2) + 4, toY(s1P2));
+                }
+            }
+
+            // 5. 繪製需求曲線 D（斜度隨 slopeLevel 改變）
+            const k = getSlopeFactor(sc, cData.slopeLevel);
+            const dStartQ = Math.max(5, q0 - (maxAxisP * 0.90 - p0) * k);
+            const dStartP = Math.min(maxAxisP * 0.94, p0 - (dStartQ - q0) / k);
+            const dEndQ = Math.min(maxAxisQ * 0.94, q0 + p0 * k * 0.90);
+            const dEndP = Math.max(0.5, p0 - (dEndQ - q0) / k);
+
+            ctx.strokeStyle = '#2563eb';
+            ctx.lineWidth = 3.4;
+            ctx.beginPath();
+            ctx.moveTo(toX(dStartQ), toY(dStartP));
+            ctx.lineTo(toX(dEndQ), toY(dEndP));
+            ctx.stroke();
+
+            ctx.fillStyle = '#1d4ed8';
+            ctx.font = 'bold 15px sans-serif';
+            ctx.fillText('D', toX(dEndQ) + 6, toY(dEndP) + 4);
+
+            // 6. 繪製原始點 A (Q1, P1) 與虛線刻度
+            ctx.save();
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 1.3;
+            ctx.beginPath();
+            ctx.moveTo(pad.left, yP0);
+            ctx.lineTo(xQ0, yP0);
+            ctx.lineTo(xQ0, pad.top + plotH);
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.fillStyle = '#334155';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.fillText(`$${p0}`, pad.left - 38, yP0 + 4);
+            ctx.fillText(`${q0}`, xQ0 - 10, pad.top + plotH + 17);
+
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.arc(xQ0, yP0, 5.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillText(`A (${q0}, $${p0})`, xQ0 + 8, yP0 - 7);
+
+            // 7. 繪製當前滑標點 B (Q, P)
+            if (Math.abs(pCurr - p0) >= 0.05) {
+                ctx.save();
+                ctx.setLineDash([4, 4]);
+                ctx.strokeStyle = '#d97706';
+                ctx.lineWidth = 1.6;
+                ctx.beginPath();
+                ctx.moveTo(pad.left, yPC);
+                ctx.lineTo(xQC, yPC);
+                ctx.lineTo(xQC, pad.top + plotH);
+                ctx.stroke();
+                ctx.restore();
+
+                ctx.fillStyle = '#b45309';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.fillText(`$${pCurr}`, pad.left - 38, yPC + 4);
+                ctx.fillText(`${qCurr}`, xQC - 10, pad.top + plotH + 17);
+            }
+
+            // 繪製橘色可拖動滑標圓點
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(xQC, yPC, 8.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            ctx.fillStyle = '#92400e';
+            ctx.font = 'bold 12px sans-serif';
+            const labelB = Math.abs(pCurr - p0) < 0.05 ? '滑標 B (可拖動)' : `B (${qCurr}, $${pCurr})`;
+            ctx.fillText(labelB, xQC + 11, yPC + 14);
+
+            ctx.restore();
+        }
+
+        // 支援直接在 Canvas 上用滑鼠或手指沿需求線拖動滑標點 B
+        function handleCanvasPointerMove(clientY) {
+            if (!isDraggingPoint || !canvasGeom) return;
+            const canvas = document.getElementById('pedCanvas');
+            const rect = canvas.getBoundingClientRect();
+            if (!rect.height) return;
+
+            // 將螢幕 CSS Y 座標轉換回邏輯高度 (420) 的座標
+            const scaleY = canvasGeom.logicalH / rect.height;
+            const relY = (clientY - rect.top) * scaleY;
+            let rawP = canvasGeom.fromY(relY);
+
+            const sc = canvasGeom.sc;
+            rawP = Math.max(sc.minP, Math.min(sc.maxP, rawP));
+            const steppedP = Math.round(rawP / sc.stepP) * sc.stepP;
+
+            const cData = getCurrCaseData();
+            if (cData.currentP !== steppedP) {
+                cData.currentP = steppedP;
+                saveStorage();
+                renderStage2();
+            }
+        }
+
+        // ==========================================
+        // 6. 階段三：逐步引導撰寫總結與全班展示板
+        // ==========================================
+        function updateAutoSummaryText() {
+            const g = getCurrGroup();
+            const sc = SCENARIOS[g.activeCase];
+            const cData = getCurrCaseData();
+
+            const edVal = cData.guideEdVal || '____';
+            const elType = cData.guideElType || '____';
+            const slopeType = cData.guideSlopeType || '____';
+            const magComp = cData.guideMagCompare || '____';
+            const pDir = cData.guidePDir || '____';
+            const trDir = cData.guideTrDir || '____';
+            const relDir = cData.guideRelDir || '____';
+
+            const sentence = `【${sc.shortName}】以中點法計算，需求彈性數值為 ${edVal}，屬於${elType}彈性，因此需求曲線畫得${slopeType}。當價格改變時，需求量的百分比變動幅度${magComp}價格的百分比變動幅度。因此，當價格${pDir}時，總收入 (TR) 會${trDir}，兩者呈${relDir}變動。`;
+            cData.finalSummary = sentence;
+            document.getElementById('final-summary-text').value = sentence;
+        }
+
+        function generateIntegratedParagraph() {
+            updateAutoSummaryText();
+            saveStorage();
+            showToast('已將 3 步引導內容整合成完整總結段落！', 'info');
+        }
+
+        function publishGroupSummary() {
+            const g = getCurrGroup();
+            const sc = SCENARIOS[g.activeCase];
+            const cData = getCurrCaseData();
+
+            const summaryVal = document.getElementById('final-summary-text').value.trim();
+            if (!summaryVal || summaryVal.includes('____')) {
+                showToast('請先完成上方 3 步引導的所有空格，或填寫完整總結句子再發佈！', 'error');
+                return;
+            }
+
+            cData.finalSummary = summaryVal;
+            cData.published = true;
+            appState.boardFilterCase = g.activeCase;
+
+            saveStorage();
+            renderCaseCards();
+            renderClassBoard();
+            showToast(`第 ${appState.currentGroup} 組在「${sc.shortName}」的總結已發佈至全班展示板！`);
+        }
+
+        function setBoardFilter(caseId) {
+            appState.boardFilterCase = caseId;
+            saveStorage();
+            renderClassBoard();
+        }
+
+        // ==========================================
+        // 7. 渲染各區塊 UI
+        // ==========================================
+        function renderCaseCards() {
+            const g = getCurrGroup();
+            [1, 2, 3].forEach(id => {
+                const card = document.getElementById(`case-card-${id}`);
+                const doneBadge = document.getElementById(`case-done-badge-${id}`);
+
+                if (g.cases[id].published) {
+                    doneBadge.classList.remove('hidden');
+                } else {
+                    doneBadge.classList.add('hidden');
+                }
+
+                if (id === g.activeCase) {
+                    card.className = 'case-card cursor-pointer rounded-2xl p-5 border-2 transition-all duration-200 bg-blue-50/40 shadow-md border-brand-600 ring-2 ring-brand-500/20';
+                } else {
+                    card.className = 'case-card cursor-pointer rounded-2xl p-5 border-2 transition-all duration-200 bg-white hover:shadow-md border-slate-200 opacity-85 hover:opacity-100';
+                }
+            });
+        }
+
+        function renderStage1() {
+            const g = getCurrGroup();
+            const sc = SCENARIOS[g.activeCase];
+            const cData = getCurrCaseData();
+
+            document.getElementById('s1-p0').textContent = `$${sc.p0}`;
+            document.getElementById('s1-p1').textContent = `$${sc.p1}`;
+            document.getElementById('s1-q0').textContent = `${sc.q0} 件`;
+            document.getElementById('s1-q1').textContent = `${sc.q1} 件`;
+
+            document.getElementById('input-pct-q').value = cData.inputPctQ;
+            document.getElementById('input-pct-p').value = cData.inputPctP;
+            document.getElementById('input-ed').value = cData.inputEd;
+
+            ['elastic', 'inelastic'].forEach(t => {
+                const btn = document.getElementById(`btn-s1-${t}`);
+                if (cData.selectedType === t) {
+                    btn.className = 'py-2 px-2 rounded-lg border-2 border-indigo-600 bg-indigo-50 text-xs font-extrabold text-indigo-800 shadow-sm transition-all';
+                } else {
+                    btn.className = 'py-2 px-2 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold text-slate-700 hover:border-indigo-400 transition-all';
+                }
+            });
+
+            const badge = document.getElementById('stage1-lock-badge');
+            const fbBox = document.getElementById('s1-feedback-box');
+
+            if (!cData.s1Checked) {
+                badge.innerHTML = '<i class="fa-solid fa-pen-to-square mr-1"></i> 請填寫計算結果';
+                badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800';
+                fbBox.innerHTML = '輸入計算結果後，點擊右側按鈕核對答案並查看中點法算式解析。';
+                fbBox.className = 'text-xs sm:text-sm font-medium text-slate-600 flex-1';
+            } else if (cData.s1Correct) {
+                badge.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> 計算正確 (Ed = ${sc.ed})`;
+                badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+                fbBox.innerHTML = `<span class="text-emerald-700 font-bold"><i class="fa-solid fa-check-circle mr-1"></i>算式解析：</span>${sc.explanation}`;
+                fbBox.className = 'text-xs sm:text-sm bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-emerald-950 flex-1 leading-relaxed';
+            } else {
+                badge.innerHTML = '<i class="fa-solid fa-circle-xmark mr-1"></i> 需修正計算';
+                badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800';
+                fbBox.innerHTML = `<span class="text-rose-700 font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>中點法提示：</span>中點需求量 (Q₁+Q₂)/2 = ${sc.midQ} 件，中點價格 (P₁+P₂)/2 = $${sc.midP}。請分別用 ΔQ ÷ ${sc.midQ} 與 ΔP ÷ ${sc.midP} 求出變動百分比，再相除取正值。`;
+                fbBox.className = 'text-xs sm:text-sm bg-rose-50 border border-rose-200 p-3 rounded-xl text-rose-950 flex-1 leading-relaxed';
+            }
+        }
+
+        function renderStage2() {
+            const g = getCurrGroup();
+            const sc = SCENARIOS[g.activeCase];
+            const cData = getCurrCaseData();
+
+            const edHint = document.getElementById('s2-ed-hint');
+            if (cData.s1Correct) {
+                edHint.textContent = `Ed = ${sc.ed}，${sc.type === 'elastic' ? '高彈性' : '低彈性'}`;
+            } else {
+                edHint.textContent = '請先完成階段一計算';
+            }
+
+            const legendS = document.getElementById('legend-supply');
+            if (sc.isSupplyShift) {
+                legendS.classList.remove('hidden');
+                document.getElementById('move-instruction-text').textContent = '拖動下方滑桿（或圖上橘色圓點），觀察供應減少左移推高價格時，點沿需求線移動對總收入的影響。';
+            } else {
+                legendS.classList.add('hidden');
+                document.getElementById('move-instruction-text').textContent = '拖動下方滑桿（或直接拖動圖上橘色圓點），沿需求線移動滑標，觀察總收入變化。';
+            }
+
+            const slopeSlider = document.getElementById('slope-slider');
+            slopeSlider.value = cData.slopeLevel;
+            const slopeNames = {
+                1: '非常陡峭 (較斜)',
+                2: '較斜 (陡峭)',
+                3: '中等斜度',
+                4: '較平 (平坦)',
+                5: '非常平坦 (較平)'
+            };
+            document.getElementById('slope-status-label').textContent = `目前斜度：${slopeNames[cData.slopeLevel]}`;
+
+            const moveSlider = document.getElementById('move-slider');
+            moveSlider.min = sc.minP;
+            moveSlider.max = sc.maxP;
+            moveSlider.step = sc.stepP;
+            moveSlider.value = cData.currentP;
+
+            document.getElementById('move-min-label').textContent = `$${sc.minP}`;
+            document.getElementById('move-target-label').textContent = `情境目標：$${sc.p1}`;
+            document.getElementById('move-max-label').textContent = `$${sc.maxP}`;
+
+            const qCurr = getQuantityOnCurve(sc, cData.slopeLevel, cData.currentP);
+            const tr0 = sc.p0 * sc.q0;
+            const trCurr = Math.round(cData.currentP * qCurr);
+            const trDiff = trCurr - tr0;
+
+            document.getElementById('point-pos-badge').textContent =
+                Math.abs(cData.currentP - sc.p0) < 0.05
+                    ? `目前位置：起點 A ($${sc.p0})`
+                    : `目前價格：$${cData.currentP} (目標 $${sc.p1})`;
+
+            document.getElementById('live-p-text').textContent = `$${sc.p0} ➔ $${cData.currentP}`;
+            document.getElementById('live-q-text').textContent = `${sc.q0} ➔ ${qCurr} 件`;
+            document.getElementById('live-tr0').textContent = `$${tr0.toLocaleString()}`;
+            document.getElementById('live-tr1').textContent = `$${trCurr.toLocaleString()}`;
+
+            const diffBadge = document.getElementById('live-tr-diff-badge');
+            const summaryBox = document.getElementById('tr-visual-summary');
+
+            if (Math.abs(trDiff) < 1) {
+                diffBadge.textContent = '無變化 ($0)';
+                diffBadge.className = 'px-3 py-1.5 rounded-lg text-xs font-extrabold bg-slate-700 text-slate-300 text-right';
+                summaryBox.innerHTML = `<strong>操作提示：</strong>目前滑標位於原本價格 <strong>$${sc.p0}</strong>。請拖動右側「控制項 2」滑標至目標價格 <strong>$${sc.p1}</strong>，觀察綠色（增加收入）與紅色（減少收入）面積的變化！`;
+            } else if (trDiff > 0) {
+                diffBadge.textContent = `淨增加 +$${trDiff.toLocaleString()}`;
+                diffBadge.className = 'px-3 py-1.5 rounded-lg text-xs font-extrabold bg-emerald-600 text-white text-right';
+                summaryBox.innerHTML = `<strong>總收入變化觀察：</strong>價格由 $${sc.p0} 變為 $${cData.currentP} 後，圖中<strong>綠色面積 (+TR) 大於紅色面積 (-TR)</strong>，總收入由 $${tr0.toLocaleString()} <strong>增加</strong>至 $${trCurr.toLocaleString()}（淨增加 +$${trDiff.toLocaleString()}）。`;
+            } else {
+                diffBadge.textContent = `淨減少 -$${Math.abs(trDiff).toLocaleString()}`;
+                diffBadge.className = 'px-3 py-1.5 rounded-lg text-xs font-extrabold bg-rose-600 text-white text-right';
+                summaryBox.innerHTML = `<strong>總收入變化觀察：</strong>價格由 $${sc.p0} 變為 $${cData.currentP} 後，圖中<strong>紅色面積 (-TR) 大於綠色面積 (+TR)</strong>，總收入由 $${tr0.toLocaleString()} <strong>減少</strong>至 $${trCurr.toLocaleString()}（淨減少 -$${Math.abs(trDiff).toLocaleString()}）。`;
+            }
+
+            drawChart();
+        }
+
+        function renderStage3() {
+            const g = getCurrGroup();
+            const sc = SCENARIOS[g.activeCase];
+            const cData = getCurrCaseData();
+
+            document.getElementById('s3-group-num').textContent = appState.currentGroup;
+            document.getElementById('btn-publish-group-num').textContent = appState.currentGroup;
+            document.getElementById('s3-case-name').textContent = sc.shortName;
+
+            document.getElementById('guide-ed-val').value = cData.guideEdVal;
+            document.getElementById('guide-el-type').value = cData.guideElType;
+            document.getElementById('guide-slope-type').value = cData.guideSlopeType;
+            document.getElementById('guide-mag-compare').value = cData.guideMagCompare;
+            document.getElementById('guide-p-dir').value = cData.guidePDir;
+            document.getElementById('guide-tr-dir').value = cData.guideTrDir;
+            document.getElementById('guide-rel-dir').value = cData.guideRelDir;
+
+            if (cData.finalSummary) {
+                document.getElementById('final-summary-text').value = cData.finalSummary;
+            } else {
+                updateAutoSummaryText();
+            }
+        }
+
+        function renderClassBoard() {
+            const filterId = appState.boardFilterCase;
+            [1, 2, 3].forEach(id => {
+                const btn = document.getElementById(`filter-case-${id}`);
+                if (id === filterId) {
+                    btn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-600 text-white shadow transition-colors';
+                } else {
+                    btn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:bg-slate-800 transition-colors';
+                }
+            });
+
+            const grid = document.getElementById('class-board-grid');
+            let html = '';
+
+            for (let i = 1; i <= 5; i++) {
+                const grp = appState.groups[i];
+                const rec = grp.cases[filterId];
+                const isCurrent = (i === appState.currentGroup);
+
+                const edBadge = rec.s1Checked
+                    ? (rec.s1Correct
+                        ? `<span class="px-2 py-0.5 rounded bg-emerald-900/80 text-emerald-300 border border-emerald-600 text-[11px] font-bold">Ed = ${rec.inputEd} ✅</span>`
+                        : `<span class="px-2 py-0.5 rounded bg-rose-900/80 text-rose-300 border border-rose-600 text-[11px] font-bold">Ed = ${rec.inputEd || '?'} ❌</span>`)
+                    : `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-[11px]">未計算</span>`;
+
+                html += `
+                <div class="rounded-xl p-3.5 border ${isCurrent ? 'bg-slate-700/95 border-amber-400 ring-1 ring-amber-400/50' : 'bg-slate-700/50 border-slate-600'} flex flex-col justify-between space-y-3">
+                    <div>
+                        <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-600/70">
+                            <span class="font-bold text-sm text-white flex items-center gap-1.5">
+                                <span class="w-5 h-5 rounded ${isCurrent ? 'bg-amber-400 text-slate-900' : 'bg-brand-600 text-white'} flex items-center justify-center text-xs font-extrabold">${i}</span>
+                                第 ${i} 組
+                            </span>
+                            ${edBadge}
+                        </div>
+
+                        <div class="text-xs">
+                            <span class="text-slate-400 block mb-1 font-semibold">本組總結回應：</span>
+                            ${rec.published && rec.finalSummary
+                                ? `<p class="text-slate-100 leading-relaxed bg-slate-800/80 p-2.5 rounded-lg border border-slate-600/60 text-xs">${rec.finalSummary}</p>`
+                                : `<p class="text-slate-500 italic py-4 text-center bg-slate-800/30 rounded-lg">小組尚未發佈此情境總結...</p>`
+                            }
+                        </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-600/50 flex items-center justify-between text-[11px]">
+                        ${rec.published
+                            ? `<span class="text-emerald-400 font-bold"><i class="fa-solid fa-circle-check mr-1"></i>已發佈</span>`
+                            : `<span class="text-slate-400">進行中</span>`
+                        }
+                        <button type="button" onclick="switchToGroupAndCase(${i}, ${filterId})" class="text-amber-300 hover:underline font-semibold">
+                            切換檢視 ➔
+                        </button>
+                    </div>
+                </div>`;
+            }
+
+            grid.innerHTML = html;
+        }
+
+        function renderAll() {
+            document.getElementById('group-select').value = appState.currentGroup;
+            renderCaseCards();
+            renderStage1();
+            renderStage2();
+            renderStage3();
+            renderClassBoard();
+        }
+
+        // ==========================================
+        // 8. 導航、示範數據與重設功能
+        // ==========================================
+        function selectCase(caseId) {
+            const g = getCurrGroup();
+            g.activeCase = caseId;
+            document.getElementById('slope-feedback').classList.add('hidden');
+            saveStorage();
+            renderAll();
+            showToast(`已切換至 ${SCENARIOS[caseId].title}`, 'info');
+        }
+
+        function switchToGroupAndCase(groupId, caseId) {
+            appState.currentGroup = groupId;
+            appState.groups[groupId].activeCase = caseId;
+            saveStorage();
+            renderAll();
+            showToast(`已切換至第 ${groupId} 組 — ${SCENARIOS[caseId].shortName}`, 'info');
+        }
+
+        function loadDemoData() {
+            const g1 = appState.groups[1];
+            g1.activeCase = 1;
+            g1.cases[1] = {
+                inputPctQ: -20, inputPctP: 40, inputEd: 0.5, selectedType: 'inelastic',
+                s1Checked: true, s1Correct: true, slopeLevel: 2, slopeChecked: true, currentP: 12,
+                guideEdVal: '0.5', guideElType: '低', guideSlopeType: '較斜',
+                guideMagCompare: '小於', guidePDir: '上升', guideTrDir: '增加', guideRelDir: '同方向',
+                finalSummary: '【情境一：加價】以中點法計算，需求彈性數值為 0.5，屬於低彈性，因此需求曲線畫得較斜。當價格改變時，需求量的百分比變動幅度小於價格的百分比變動幅度。因此，當價格上升時，總收入 (TR) 會增加（由 $880 升至 $1,080），兩者呈同方向變動。',
+                published: true
+            };
+
+            const g2 = appState.groups[2];
+            g2.activeCase = 1;
+            g2.cases[1] = {
+                inputPctQ: -20, inputPctP: 40, inputEd: 0.5, selectedType: 'inelastic',
+                s1Checked: true, s1Correct: true, slopeLevel: 1, slopeChecked: true, currentP: 12,
+                guideEdVal: '0.5', guideElType: '低', guideSlopeType: '較斜',
+                guideMagCompare: '小於', guidePDir: '上升', guideTrDir: '增加', guideRelDir: '同方向',
+                finalSummary: '【情境一：加價】以中點法計算，需求彈性數值為 0.5，屬於低彈性，因此需求曲線畫得較斜。當價格改變時，需求量的百分比變動幅度小於價格的百分比變動幅度。因此，當價格上升時，總收入 (TR) 會增加，兩者呈同方向變動。',
+                published: true
+            };
+
+            const g3 = appState.groups[3];
+            g3.activeCase = 2;
+            g3.cases[2] = {
+                inputPctQ: 40, inputPctP: -20, inputEd: 2, selectedType: 'elastic',
+                s1Checked: true, s1Correct: true, slopeLevel: 4, slopeChecked: true, currentP: 18,
+                guideEdVal: '2', guideElType: '高', guideSlopeType: '較平',
+                guideMagCompare: '大於', guidePDir: '下跌', guideTrDir: '增加', guideRelDir: '反方向',
+                finalSummary: '【情境二：減價】以中點法計算，需求彈性數值為 2，屬於高彈性，因此需求曲線畫得較平。當價格改變時，需求量的百分比變動幅度大於價格的百分比變動幅度。因此，當價格下跌時，總收入 (TR) 會增加（由 $1,760 升至 $2,160），兩者呈反方向變動。',
+                published: true
+            };
+
+            const g4 = appState.groups[4];
+            g4.activeCase = 3;
+            g4.cases[3] = {
+                inputPctQ: -20, inputPctP: 40, inputEd: 0.5, selectedType: 'inelastic',
+                s1Checked: true, s1Correct: true, slopeLevel: 2, slopeChecked: true, currentP: 24,
+                guideEdVal: '0.5', guideElType: '低', guideSlopeType: '較斜',
+                guideMagCompare: '小於', guidePDir: '上升', guideTrDir: '增加', guideRelDir: '同方向',
+                finalSummary: '【情境三：供應減少，需求不變】以中點法計算，需求彈性數值為 0.5，屬於低彈性，因此需求曲線畫得較斜。當價格改變時，需求量的百分比變動幅度小於價格的百分比變動幅度。因此，當價格上升時，總收入 (TR) 會增加（由 $880 升至 $1,080），兩者呈同方向變動。',
+                published: true
+            };
+
+            appState.boardFilterCase = 1;
+            saveStorage();
+            renderAll();
+            showToast('已載入教師示範數據（可切換底部「篩選情境」檢視各組示範）！');
+        }
+
+        function resetAllGroups() {
+            for (let i = 1; i <= 5; i++) {
+                appState.groups[i] = createDefaultGroup(i);
+            }
+            appState.currentGroup = 1;
+            appState.boardFilterCase = 1;
+            document.getElementById('slope-feedback').classList.add('hidden');
+            saveStorage();
+            renderAll();
+            showToast('已重設全班 5 組所有數據！', 'info');
+        }
+
+        // ==========================================
+        // 9. 事件監聽與雙重保障初始化
+        // ==========================================
+        function initApp() {
+            loadStorage();
+            renderAll();
+
+            // 綁定 ResizeObserver 監聽 Canvas 容器大小變化並自動重繪
+            const canvas = document.getElementById('pedCanvas');
+            if (canvas && typeof ResizeObserver !== 'undefined') {
+                const ro = new ResizeObserver(() => {
+                    drawChart();
+                });
+                ro.observe(canvas.parentElement);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initApp();
+
+            // 組別切換
+            document.getElementById('group-select').addEventListener('change', (e) => {
+                appState.currentGroup = parseInt(e.target.value, 10);
+                document.getElementById('slope-feedback').classList.add('hidden');
+                saveStorage();
+                renderAll();
+                showToast(`已切換至第 ${appState.currentGroup} 組`, 'info');
+            });
+
+            // 階段一輸入即時保存
+            ['input-pct-q', 'input-pct-p', 'input-ed'].forEach(id => {
+                document.getElementById(id).addEventListener('input', () => {
+                    const cData = getCurrCaseData();
+                    cData.inputPctQ = document.getElementById('input-pct-q').value;
+                    cData.inputPctP = document.getElementById('input-pct-p').value;
+                    cData.inputEd = document.getElementById('input-ed').value;
+                    saveStorage();
+                });
+            });
+
+            // 階段二控制項 1：斜度滑桿
+            document.getElementById('slope-slider').addEventListener('input', (e) => {
+                const cData = getCurrCaseData();
+                cData.slopeLevel = parseInt(e.target.value, 10);
+                saveStorage();
+                renderStage2();
+            });
+
+            // 階段二控制項 2：沿線移動滑標
+            document.getElementById('move-slider').addEventListener('input', (e) => {
+                const cData = getCurrCaseData();
+                cData.currentP = parseFloat(e.target.value);
+                saveStorage();
+                renderStage2();
+            });
+
+            // 階段三：逐步引導填空即時組合句子
+            const guideBindings = [
+                { id: 'guide-ed-val', field: 'guideEdVal' },
+                { id: 'guide-el-type', field: 'guideElType' },
+                { id: 'guide-slope-type', field: 'guideSlopeType' },
+                { id: 'guide-mag-compare', field: 'guideMagCompare' },
+                { id: 'guide-p-dir', field: 'guidePDir' },
+                { id: 'guide-tr-dir', field: 'guideTrDir' },
+                { id: 'guide-rel-dir', field: 'guideRelDir' }
+            ];
+            guideBindings.forEach(item => {
+                const el = document.getElementById(item.id);
+                const evtName = el.tagName === 'INPUT' ? 'input' : 'change';
+                el.addEventListener(evtName, (e) => {
+                    const cData = getCurrCaseData();
+                    cData[item.field] = e.target.value;
+                    updateAutoSummaryText();
+                    saveStorage();
+                });
+            });
+
+            document.getElementById('final-summary-text').addEventListener('input', (e) => {
+                const cData = getCurrCaseData();
+                cData.finalSummary = e.target.value;
+                saveStorage();
+            });
+
+            // Canvas 滑鼠與觸控直接拖動沿線滑標
+            const canvas = document.getElementById('pedCanvas');
+            canvas.addEventListener('mousedown', (e) => {
+                isDraggingPoint = true;
+                handleCanvasPointerMove(e.clientY);
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (isDraggingPoint) handleCanvasPointerMove(e.clientY);
+            });
+            window.addEventListener('mouseup', () => {
+                isDraggingPoint = false;
+            });
+
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 0) {
+                    isDraggingPoint = true;
+                    handleCanvasPointerMove(e.touches[0].clientY);
+                }
+            }, { passive: true });
+            window.addEventListener('touchmove', (e) => {
+                if (isDraggingPoint && e.touches.length > 0) {
+                    handleCanvasPointerMove(e.touches[0].clientY);
+                }
+            }, { passive: true });
+            window.addEventListener('touchend', () => {
+                isDraggingPoint = false;
+            });
+        });
+
+        // 雙重保障：window.onload 再次確保圖表已正確繪製
+        window.onload = function () {
+            drawChart();
+        };
+    </script>
+</body>
+</html>
